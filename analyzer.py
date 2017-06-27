@@ -1,7 +1,7 @@
 #type: 'address', 'uint', 'int', 'bool', 'byte', 'string', 'mapping', 'enum', 'struct', 'unit'
 import os
 
-COV_DIR = os.path.join(os.getcwd(), 'originalData')
+DATA_DIR = os.path.join('..', 'refinedData')
 
 ##############code extractor############
 
@@ -34,29 +34,28 @@ def removeComment2(code):
 
 #remove pragma
 def removePragma(code):
+	code = removeComment(code)
 	code = removeIndent(code)
-	if code.startswith('pragma'):
-		rx = code.index(';')
-		code = code[rx + 1:]
-
-	return removeComment(code)
-
+	
+	lx = code.find('pragma')
+	while lx > -1:
+		rx = code[lx:].index(';')
+		code = code[:lx] + code[rx + lx + 1:]
+		lx = code.find('pragma')
+	
+	return code
 #split blocks: from '{' to '}'	
+
 def splitBlocks(code):
-	pairs = []
-	depth = 0
 	stack = []
 	
 	for index, char in enumerate(code):
 		if char == '{':
-			depth += 1
 			stack.append(index)
-		elif char == '}':
-			depth -= 1
-			pairs.append((depth, stack.pop(), index))
-
-	return sorted(pairs, key =  lambda x : x[1])
-
+		elif char == '}' and stack:
+			start = stack.pop()
+			yield ((len(stack), start, index))
+			
 #remove other depth; pairs are sorted
 def selectDepth(code, pairs, targetDepth):
 	#first, extract ranges(pairs) whose depths are targetDepth or +1
@@ -86,7 +85,7 @@ def selectDepth(code, pairs, targetDepth):
 	
 #	print (result)		##########print raw code
 	return result
-	
+
 def splitContractName(code, pairs):
 	result = []
 	contractNames = selectDepth(code, pairs, 0)[0]
@@ -136,28 +135,30 @@ def pattern3(line):
 #pattern 5: find variables which never change
 	
 
-	
 #####################start##################
+totalConuter = 0
+declartionCounter = 0
+p2Counter = 0
 print ("file\tP1\tP2\tP3\tP4\tP5\tType\tName")
 
-for files in sorted(os.listdir(COV_DIR), key = lambda x : int(x[:-4])):
+for files in sorted(os.listdir(DATA_DIR), key = lambda x : int(x[:-4])):
 	if not files.endswith('.sol'):
 		continue
-#for files in ['22.sol']:
+#for files in ['9.sol']:
 	try:
-		with open(os.path.join(COV_DIR, files), 'r') as fp:
-			allCode = '{' + removePragma(fp.read()) + '}'
+		with open(os.path.join(DATA_DIR, files), 'r') as fp:
+			allCode = '{' + removeIndent(removePragma(fp.read())) + '}'
 			#extract blocks. contract & library: depth 0, declaration: depth 1
-			pairs = splitBlocks(allCode)
+			pairs = sorted(list(splitBlocks(allCode)), key = lambda x : x[1])
 			contractNames = splitContractName(allCode, pairs)
 			contractCodes = selectDepth(allCode, pairs, 1)
 			
 			for codeIndex, code in enumerate(contractCodes):
+				totalConuter += 1
 				code = code.replace('\r', ';').replace('\n', ';')
 				#clear counters
 				(p1, p2, p3_1 , p3_2) = (0, 0, 0, 0)
-				
-				
+								
 				#iterate all code line and find modifer, etc.
 				modiferSet = set()
 				structSet = set()
@@ -174,7 +175,7 @@ for files in sorted(os.listdir(COV_DIR), key = lambda x : int(x[:-4])):
 						words = " ".join(codeLine.split()).replace('(', ' ').split(' ')
 						structSet.add(words[1])
 						continue
-					elif codeLine.startswith(('function', 'event')):
+					elif codeLine.startswith(('function', 'event', 'public', 'private', 'returns', 'payable', 'constant', 'external', 'internal')):
 						continue
 					declarationPart.append(codeLine)
 				
@@ -188,7 +189,7 @@ for files in sorted(os.listdir(COV_DIR), key = lambda x : int(x[:-4])):
 					if declaration.startswith(tuple(modiferSet)):
 						num_declaration -= 1
 						continue			
-	#				print (declaration)
+#					print (declaration)
 
 					#patterns
 					pattern1(declaration)
@@ -201,12 +202,19 @@ for files in sorted(os.listdir(COV_DIR), key = lambda x : int(x[:-4])):
 				(type, name) = contractNames[codeIndex]
 				
 				print ("%s\t%.2f\t%.2f\t%.2f\t\t\t%s\t%s" % (files, r1,  r2, r3, type, name))
-	except:
-		print ("%s\thas problem!!!!!!!!!!!!!!!!!!!!" % (files))
+				if type != 'library':
+					declartionCounter += 1
+				if p2 > 0:
+					p2Counter += 1
+				
+	except Exception as e:
+		print ("%s\thas problem!!!: %s" % (files, e))
 		continue
 		
 
 #end part
+
+print ('TOTAL: %d, delc: %d, P2: %d' % (totalConuter, declartionCounter, p2Counter))
 #print ('p1: public pattern.\t0.00: no problem, 1.00: high potential')
 #print ('p2: initializing pattern.\t0.00: no problem, else: problem')
 #print ('p3: type pattern.\t'0.00: low problem, 1.00: high problem')
