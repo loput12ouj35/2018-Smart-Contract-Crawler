@@ -32,7 +32,7 @@ DATA_DIR = os.path.join('..', 'crawledData')
 ERR_LOG = 'error.txt'
 
 with open(ERR_LOG, 'a') as errFp:
-	for index in range(301,401):
+	for index in range(1,401):
 		url = 'https://etherscan.io/accounts/c/' + str(index)
 		print('crawler is trying: index', index, 'url:', url)
 		

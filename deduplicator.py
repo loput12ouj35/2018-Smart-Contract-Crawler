@@ -14,16 +14,6 @@ for files in sorted(os.listdir(DATA_DIR), key = lambda x : int(x[:-4])):
 			code = fp.read()
 			(cn, cl, ch) = (files, len(code), hashlib.md5(code.encode('utf-8')).hexdigest())
 			
-			'''
-			flag = False
-			for (pn, pl, ph) in uniqueContracts:
-				if cl == pl and ch == ph:
-					print ('%s is equivalent to %s' % (files, pn))
-					flag = True
-					break
-			if not flag:
-				uniqueContracts.append((files, cl, ch))
-			'''
 			if (cl, ch) in [(pl, ph) for (pn, pl, ph) in uniqueContracts]:
 				print ('%s is duplicate' % (files))
 			else:
